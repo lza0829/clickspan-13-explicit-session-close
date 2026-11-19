@@ -58,6 +58,15 @@ CREATE TABLE IF NOT EXISTS session_proofs (
   ended_at TEXT,
   created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS session_closings (
+  session_id TEXT PRIMARY KEY REFERENCES sessions(id),
+  visitor_id TEXT NOT NULL,
+  hit_ids_json TEXT NOT NULL,
+  hit_count INTEGER NOT NULL,
+  content_hash TEXT NOT NULL,
+  closed_at TEXT NOT NULL
+);
 """
 
 

@@ -3,10 +3,16 @@ import uuid
 from datetime import datetime, timezone
 
 from app.db import FIXTURES_DIR, connect
+from app.modules import closed_session_reject as reject_gate
 
 
 def run_batch() -> dict:
-    """基座装载：按夹具追加击点；超时切会话 / 脏点隔离留给功能题空桩。"""
+    """基座装载：按夹具追加击点；超时切会话 / 脏点隔离留给功能题空桩。
+
+    收流闸（closed_session_reject）：显式指向 closed 会话、或访客已无 open
+    可挂且最新会话已关闭的击点一律隔离，不写入、不新建到旧会话——关闭后
+    成员不可追加；仍有 open 会话时挂最新 open。
+    """
     path = FIXTURES_DIR / "ingest_batch.json"
     if not path.exists():
         return {"ok": False, "error": "缺少 ingest_batch.json"}
@@ -18,6 +24,7 @@ def run_batch() -> dict:
     try:
         conn.execute("BEGIN IMMEDIATE")
         written = 0
+        rejected = 0
         for hit in hits:
             vid = hit["visitor_id"]
             exists = conn.execute("SELECT 1 FROM visitors WHERE id=?", (vid,)).fetchone()
@@ -26,17 +33,29 @@ def run_batch() -> dict:
                     "INSERT INTO visitors(id, label, created_at) VALUES (?,?,?)",
                     (vid, hit.get("visitor_label") or vid, _now()),
                 )
-            # 基座：挂到该访客最新 open 会话；无则新建（不做超时切分）
-            sess = conn.execute(
-                """
-                SELECT id FROM sessions
-                WHERE visitor_id=? AND status='open'
-                ORDER BY started_at DESC LIMIT 1
-                """,
-                (vid,),
-            ).fetchone()
-            if sess:
-                sid = sess["id"]
+
+            # 收流闸：关闭后的会话拒收（同事务，拒收进 quarantine）
+            sid, is_rejected = reject_gate.route_hit(conn, hit)
+            if is_rejected:
+                reject_gate.quarantine_hit(
+                    conn,
+                    hit,
+                    f"会话已关闭，拒收击点 {hit.get('id')}",
+                )
+                rejected += 1
+                continue
+
+            if sid:
+                # 双保险：即便闸口放行，也绝不写 closed 会话
+                row = conn.execute(
+                    "SELECT status FROM sessions WHERE id=?", (sid,)
+                ).fetchone()
+                if row and row["status"] != "open":
+                    reject_gate.quarantine_hit(
+                        conn, hit, f"会话状态 {row['status']} 不可写"
+                    )
+                    rejected += 1
+                    continue
             else:
                 sid = f"S-{vid}-{uuid.uuid4().hex[:6]}"
                 conn.execute(
@@ -99,7 +118,12 @@ def run_batch() -> dict:
                         _now(),
                     ),
                 )
-        report = {"batch_id": batch_id, "written": written, "input": len(hits)}
+        report = {
+            "batch_id": batch_id,
+            "written": written,
+            "rejected_closed": rejected,
+            "input": len(hits),
+        }
         conn.execute(
             "INSERT OR REPLACE INTO ingest_batches(id, created_at, report_json) VALUES (?,?,?)",
             (batch_id, _now(), json.dumps(report, ensure_ascii=False)),

@@ -231,3 +231,38 @@ table.data th { color: var(--muted); font-weight: 500; }
 
 .err { color: var(--danger); }
 .ok { color: var(--cyan); }
+
+/* 显式关闭：固化态徽标、只读织机、核证条 */
+.badge {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-family: var(--mono);
+}
+.badge-open { background: var(--cyan-soft); border: 1px solid #9ec9c6; color: #1f5e5a; }
+.badge-closed { background: var(--copper-soft); border: 1px solid var(--copper); color: #7a3f1d; }
+.badge-ok { background: #e3f3e6; border: 1px solid #4f9d69; color: #256038; }
+.badge-bad { background: #fbe3e1; border: 1px solid var(--danger); color: var(--danger); }
+
+.lane-closed { border-left-color: var(--copper); opacity: 0.92; }
+.lane-closed .bead-sealed {
+  background: var(--copper-soft);
+  border-color: var(--copper);
+}
+.closing-meta { margin-top: 0.3rem; color: var(--muted); font-size: 0.78rem; }
+.lane-actions { display: flex; align-items: center; gap: 0.7rem; }
+.btn-small { padding: 0.3rem 0.7rem; font-size: 0.8rem; }
+.btn-ghost { background: #fff; color: var(--char); border: 1px solid var(--line); }
+.btn-ghost:hover { background: var(--copper-soft); color: var(--char); }
+.attestation {
+  margin-top: 0.6rem;
+  padding: 0.5rem 0.65rem;
+  background: #fff;
+  border: 1px dashed var(--line);
+  border-radius: 4px;
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+}

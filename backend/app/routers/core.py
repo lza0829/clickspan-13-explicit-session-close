@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
 from app.db import connect
+from app.modules import explicit_session_close as esc
 from app.seed import idle_timeout_sec
 from app.services import ingest as ingest_svc
 from app.services import sessions as sess_svc
@@ -54,6 +55,36 @@ def get_session(session_id: str):
         if not detail:
             raise HTTPException(404, "会话不存在")
         return detail
+    finally:
+        conn.close()
+
+
+@router.post("/sessions/{session_id}/close")
+def close_session(session_id: str):
+    """显式关闭：同事务写关闭登记（成员 id 列表+内容哈希）+ 置 closed + 核证。"""
+    conn = connect()
+    try:
+        try:
+            return sess_svc.close_open_session(conn, session_id)
+        except esc.CloseError as e:
+            msg = str(e)
+            if msg == "会话不存在":
+                raise HTTPException(404, msg)
+            # 已关闭 / 空快照 / 状态被并发改动：前置条件不满足
+            raise HTTPException(409, msg)
+    finally:
+        conn.close()
+
+
+@router.get("/sessions/{session_id}/attestation")
+def session_attestation(session_id: str):
+    """只读关闭核证：登记表 vs 当前成员 vs 核证行三方比对，无任何写操作。"""
+    conn = connect()
+    try:
+        try:
+            return esc.attestation(conn, session_id)
+        except esc.CloseError as e:
+            raise HTTPException(404, str(e))
     finally:
         conn.close()
 

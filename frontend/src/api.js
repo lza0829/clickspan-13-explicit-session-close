@@ -17,6 +17,10 @@ export const api = {
   sessions: (visitorId) =>
     req(visitorId ? `/api/sessions?visitor_id=${encodeURIComponent(visitorId)}` : '/api/sessions'),
   session: (id) => req(`/api/sessions/${encodeURIComponent(id)}`),
+  closeSession: (id) =>
+    req(`/api/sessions/${encodeURIComponent(id)}/close`, { method: 'POST' }),
+  attestation: (id) =>
+    req(`/api/sessions/${encodeURIComponent(id)}/attestation`),
   quarantine: () => req('/api/quarantine'),
   ingest: () => req('/api/ingest/run', { method: 'POST' }),
   proofs: (sessionId) =>
